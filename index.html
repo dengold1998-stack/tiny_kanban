@@ -5,12 +5,378 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tiny Kanban</title>
 <style>
-/* Вставьте сюда весь CSS из предыдущего ответа */
-body { font-family: sans-serif; background: #0b0f15; color: #e8eefc; margin: 0; padding: 0;}
+  :root{
+    --bg:#0b0f15;               /* dark blueish for high contrast */
+    --panel:#121826;            /* panels */
+    --panel-2:#0e1420;
+    --text:#e8eefc;
+    --muted:#9fb0d4;
+    --accent:#4da3ff;
+    --good:#22c55e;
+    --warn:#f59e0b;
+    --bad:#ef4444;
+    --low:#64748b;   /* priority colors */
+    --med:#f59e0b;
+    --high:#ef4444;
+    --done:#14b8a6;
+    --shadow:0 10px 30px rgba(0,0,0,.45);
+    --radius:18px;
+    --radius-sm:12px;
+    --gap:14px;
+    --fs-base:18px;      /* readable base size */
+    --fs-lg:20px;
+    --fs-xl:28px;        /* headers */
+    --fs-xxl:36px;       /* board title */
+  }
+  html,body{height:100%;}
+  body{
+    margin:0; background:linear-gradient(180deg,var(--bg),#0b1120 60%);
+    color:var(--text); font:600 var(--fs-base)/1.35 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  .container{max-width:1400px;margin:0 auto;padding:20px 18px 28px;}
+  header{display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom:18px;}
+  .title{font-size:var(--fs-xxl); letter-spacing:.5px; display:flex; align-items:center; gap:12px;}
+  .title .dot{width:16px;height:16px;background:var(--accent);border-radius:50%; box-shadow:0 0 0 6px rgba(77,163,255,.15);} 
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:stretch}
+  .toolbar > *{background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius: var(--radius-sm); padding:10px 12px; box-shadow: var(--shadow);} 
+  .toolbar input,.toolbar select{background:transparent; border:none; color:var(--text); outline:none; font-weight:600; font-size:var(--fs-base);}
+  .toolbar .search{display:flex; align-items:center; gap:10px;}
+  .btn{cursor:pointer; user-select:none;}
+  .btn.primary{background:linear-gradient(180deg,#2a7dff,#246bdf); border:0;}
+  .btn.danger{background:linear-gradient(180deg,#ff5454,#e23d3d); border:0;}
+
+  .board{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-items:start;}
+  .col{background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid rgba(255,255,255,.07); border-radius:var(--radius); min-height:64vh; box-shadow:var(--shadow); display:flex; flex-direction:column;}
+  .col-header{display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.06); position:sticky; top:0; background:inherit; border-top-left-radius:var(--radius); border-top-right-radius:var(--radius); z-index:2}
+  .col-title{font-size:var(--fs-xl); display:flex; align-items:center; gap:10px}
+  .counter{opacity:.85; font-weight:700; padding:3px 8px; border-radius:999px; background:rgba(255,255,255,.07);}
+  .wip{display:flex; align-items:center; gap:8px}
+  .wip label{font-size:14px; color:var(--muted);}
+  .wip input{width:56px; text-align:center; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-radius:10px; color:var(--text); padding:4px 6px; font-weight:800}
+
+  .dropzone{padding:14px; display:grid; gap:12px; grid-auto-rows:min-content; min-height:200px;}
+  .dropzone.drag-over{outline:3px dashed var(--accent); outline-offset:-8px;}
+  .dropzone.blocked{outline:3px solid var(--bad);}
+
+  .card{background:#0f172a; border:1px solid rgba(255,255,255,.09); border-radius:14px; padding:12px 12px 10px; box-shadow:var(--shadow); display:grid; gap:10px; cursor:grab}
+  .card[draggable="true"]:active{cursor:grabbing}
+  .card .top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+  .card .title{font-size:var(--fs-lg)}
+  .badge{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:4px 8px; border-radius:999px;}
+  .pri-high{background:rgba(239,68,68,.18); color:#fecaca; border:1px solid rgba(239,68,68,.4)}
+  .pri-med{background:rgba(245,158,11,.18); color:#fde68a; border:1px solid rgba(245,158,11,.45)}
+  .pri-low{background:rgba(148,163,184,.18); color:#e2e8f0; border:1px solid rgba(148,163,184,.35)}
+  .stripe{height:6px; border-radius:6px;}
+  .stripe.high{background:var(--high)}
+  .stripe.med{background:var(--med)}
+  .stripe.low{background:var(--low)}
+
+  .people{display:flex; align-items:center; gap:8px;}
+  .avatar{width:30px;height:30px;border-radius:50%; background:linear-gradient(135deg,#1f2937,#334155); display:grid; place-items:center; font-weight:900; border:1px solid rgba(255,255,255,.15)}
+  .avatar.small{width:26px;height:26px; font-size:12px}
+  .assignee{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--muted)}
+
+  .actions{display:flex; gap:8px}
+  .icon-btn{width:36px;height:36px; display:grid; place-items:center; border-radius:10px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); cursor:pointer}
+  .icon-btn:hover{background:rgba(255,255,255,.1)}
+
+  .empty{opacity:.6; font-weight:700; text-align:center; padding:20px}
+
+  .footer{margin-top:16px; display:flex; gap:12px; justify-content:flex-end}
+
+  /* New item panel */
+  .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow)}
+  .grid-3{display:grid; grid-template-columns:2fr 1fr 1fr; gap:12px}
+  .field{display:flex; flex-direction:column; gap:8px}
+  .field label{font-size:14px; color:var(--muted)}
+  .field input,.field select,.field textarea{background:#0c1220; border:1px solid rgba(255,255,255,.12); color:var(--text); border-radius:12px; padding:10px 12px; font-weight:600}
+  textarea{min-height:60px; resize:vertical}
+
+  /* Toast */
+  .toast{position:fixed; top:14px; left:50%; transform:translateX(-50%); background:#0b1220; border:1px solid rgba(255,255,255,.18); color:var(--text); padding:10px 14px; border-radius:999px; box-shadow:var(--shadow); z-index:50; font-weight:800; display:none}
+  .toast.show{display:block}
+
+  /* Responsive */
+  @media (max-width: 980px){
+    .board{grid-template-columns:1fr;}
+    .title{font-size:30px}
+  }
 </style>
 </head>
 <body>
-<h1>Tiny Kanban</h1>
-<p>Здесь вставьте весь HTML и JS из предыдущего ответа.</p>
+  <div class="container">
+    <header>
+      <div class="title"><span class="dot"></span> Tiny Kanban</div>
+      <div class="toolbar">
+        <div class="search" title="Фильтр по тексту или исполнителю (/@имя)">
+          🔎 <input id="search" placeholder="Поиск: текст или @исполнитель… (Esc очистить)" />
+        </div>
+        <button id="addQuick" class="btn primary">＋ Быстрая задача</button>
+        <button id="exportJson" class="btn">⬇️ Экспорт</button>
+        <button id="importJson" class="btn">⬆️ Импорт</button>
+        <button id="clearAll" class="btn danger">🗑 Очистить всё</button>
+      </div>
+    </header>
+
+    <!-- New item form -->
+    <section class="panel" aria-label="Создание задачи">
+      <form id="newItem" class="grid-3">
+        <div class="field">
+          <label for="title">Заголовок</label>
+          <input id="title" required maxlength="120" placeholder="Что нужно сделать? (Enter — добавить)">
+        </div>
+        <div class="field">
+          <label for="priority">Приоритет</label>
+          <select id="priority">
+            <option value="high">Высокий</option>
+            <option value="med" selected>Средний</option>
+            <option value="low">Низкий</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="assignee">Исполнитель</label>
+          <div style="display:flex; gap:8px">
+            <select id="assignee" style="flex:1"></select>
+            <input id="assigneeNew" placeholder="+ новый" style="width:140px" />
+          </div>
+        </div>
+        <div class="field" style="grid-column:1/ -1">
+          <label for="desc">Описание (необязательно)</label>
+          <textarea id="desc" placeholder="Короткие детали…"></textarea>
+        </div>
+        <div class="footer" style="grid-column:1/ -1">
+          <button class="btn primary" type="submit">Добавить в To‑Do</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Board -->
+    <section class="board" id="board">
+      <div class="col" data-col="todo">
+        <div class="col-header">
+          <div class="col-title">To‑Do <span class="counter" id="count-todo">0</span></div>
+          <div class="wip"><label>WIP</label><input id="wip-todo" type="number" min="0" step="1" /></div>
+        </div>
+        <div class="dropzone" id="zone-todo" aria-label="To‑Do"></div>
+      </div>
+      <div class="col" data-col="doing">
+        <div class="col-header">
+          <div class="col-title">Doing <span class="counter" id="count-doing">0</span></div>
+          <div class="wip"><label>WIP</label><input id="wip-doing" type="number" min="0" step="1" /></div>
+        </div>
+        <div class="dropzone" id="zone-doing" aria-label="Doing"></div>
+      </div>
+      <div class="col" data-col="done">
+        <div class="col-header">
+          <div class="col-title">Done <span class="counter" id="count-done">0</span></div>
+          <div class="wip"><label>WIP</label><input id="wip-done" type="number" min="0" step="1" /></div>
+        </div>
+        <div class="dropzone" id="zone-done" aria-label="Done"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const LS_KEY = 'tiny-kanban-v1';
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  /*** State ***/
+  let state = {
+    people: ['Alex','Bianca','Chen','Diego'],
+    wip: { todo: 7, doing: 4, done: 0 }, // 0 in Done = unlimited
+    items: [
+      // sample items on first run
+      // {id:'1', title:'Пример задачи', desc:'', pri:'med', who:'Alex', col:'todo'}
+    ],
+    seq: 1
+  };
+
+  function load(){
+    try{ const raw = localStorage.getItem(LS_KEY); if(raw){ state = JSON.parse(raw); }}catch(e){ console.warn(e); }
+  }
+  function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+  load();
+
+  /*** Helpers ***/
+  const el = (tag, attrs={}, ...children)=>{
+    const n = document.createElement(tag);
+    for(const [k,v] of Object.entries(attrs||{})){
+      if(k==='class') n.className = v; else if(k==='text') n.textContent = v; else if(k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+    }
+    for(const c of children){ n.append(c); }
+    return n;
+  }
+
+  function toast(msg){
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 1700);
+  }
+
+  function initials(name){
+    return (name||'').split(/\s+/).map(p=>p[0]).slice(0,2).join('').toUpperCase();
+  }
+
+  /*** Render ***/
+  function renderPeopleSelect(){
+    const sel = $('#assignee');
+    sel.innerHTML = '';
+    state.people.forEach(p=> sel.append(el('option',{value:p,text:p})) );
+  }
+
+  function cardView(item){
+    const priClass = item.pri==='high'?'pri-high': item.pri==='low'?'pri-low':'pri-med';
+    const stripeClass = item.pri==='high'?'high': item.pri==='low'?'low':'med';
+    const root = el('div', {class:'card', draggable:'true', 'data-id': item.id});
+    root.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('text/plain', String(item.id));
+      setTimeout(()=> root.classList.add('dragging'), 0);
+    });
+    root.addEventListener('dragend', ()=> root.classList.remove('dragging'));
+
+    const top = el('div',{class:'top'});
+    top.append(el('div',{class:'title',text:item.title}));
+    const actions = el('div',{class:'actions'});
+    const del = el('button',{class:'icon-btn', title:'Удалить', onClick:()=> removeItem(item.id)}, '🗑');
+    actions.append(del);
+    top.append(actions);
+
+    const stripe = el('div',{class:'stripe '+stripeClass});
+
+    const meta = el('div',{class:'people'});
+    const av = el('div',{class:'avatar small', title:item.who}, initials(item.who||'?'));
+    meta.append(av, el('span',{class:'badge '+priClass, text: item.pri==='high'?'High': item.pri==='low'?'Low':'Med'}));
+
+    if(item.desc){ meta.append(el('div',{class:'assignee', text:item.desc})); }
+
+    root.append(top, stripe, meta);
+    return root;
+  }
+
+  function renderCounts(){
+    ['todo','doing','done'].forEach(c=>{
+      $('#count-'+c).textContent = state.items.filter(i=>i.col===c).length;
+    });
+  }
+
+  function renderBoard(){
+    ['todo','doing','done'].forEach(col=>{
+      const zone = $('#zone-'+col); zone.innerHTML='';
+      const term = ($('#search').value||'').trim().toLowerCase();
+      const byAssignee = term.startsWith('@') ? term.slice(1) : null;
+      const list = state.items
+        .filter(i=>i.col===col)
+        .filter(i=> byAssignee ? (i.who||'').toLowerCase().includes(byAssignee) : (i.title+' '+(i.desc||'')+' '+(i.who||'')).toLowerCase().includes(term));
+      if(list.length===0){ zone.append(el('div',{class:'empty',text:'Пока пусто'})); }
+      list.forEach(i=> zone.append(cardView(i)));
+      zone.classList.remove('blocked');
+    });
+    renderCounts();
+  }
+
+  /*** Drag & Drop ***/
+  $$('.dropzone').forEach(zone=>{
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e=>{
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const item = state.items.find(i=> String(i.id)===String(id)); if(!item) return;
+      const col = zone.id.replace('zone-','');
+      if(!canEnter(col)) { zone.classList.add('blocked'); toast('WIP лимит: колонки заполнены'); setTimeout(()=>zone.classList.remove('blocked'), 800); return; }
+      item.col = col; save(); renderBoard();
+    })
+  });
+
+  function canEnter(col){
+    const lim = Number(state.wip[col]||0);
+    if(col==='done' && lim===0) return true; // unlimited by default for Done when 0
+    const cur = state.items.filter(i=>i.col===col).length;
+    return cur < lim;
+  }
+
+  /*** CRUD ***/
+  function addItem({title, pri, who, desc}){
+    const id = state.seq++;
+    state.items.push({id, title, pri, who, desc, col:'todo'});
+    save(); renderBoard();
+  }
+  function removeItem(id){
+    state.items = state.items.filter(i=> i.id!==id);
+    save(); renderBoard();
+  }
+
+  /*** Wire up new item form ***/
+  renderPeopleSelect();
+  if(!state.items.length){ save(); } // ensure schema saved
+
+  // populate selects and WIP values
+  ['todo','doing','done'].forEach(c=> $('#wip-'+c).value = Number(state.wip[c]||0));
+
+  $('#newItem').addEventListener('submit', e=>{
+    e.preventDefault();
+    const title = $('#title').value.trim(); if(!title) return;
+    const pri = $('#priority').value;
+    const newName = ($('#assigneeNew').value||'').trim();
+    if(newName){ state.people.push(newName); save(); renderPeopleSelect(); $('#assignee').value = newName; $('#assigneeNew').value=''; }
+    const who = $('#assignee').value || '';
+    const desc = $('#desc').value.trim();
+    addItem({title, pri, who, desc});
+    e.target.reset(); $('#priority').value='med'; renderBoard();
+  });
+
+  $('#addQuick').addEventListener('click', ()=>{
+    const title = prompt('Заголовок задачи'); if(!title) return;
+    addItem({title, pri:'med', who: state.people[0]||'', desc:''});
+  });
+
+  // WIP inputs
+  ['todo','doing','done'].forEach(c=>{
+    $('#wip-'+c).addEventListener('change', e=>{
+      const v = Math.max(0, Number(e.target.value||0));
+      state.wip[c] = v; save(); renderBoard(); toast(`WIP для ${c.toUpperCase()}: ${v||'∞'}`);
+    });
+  });
+
+  // Search filter
+  $('#search').addEventListener('input', renderBoard);
+  window.addEventListener('keydown', (e)=>{
+    if(e.key==='Escape'){ $('#search').value=''; renderBoard(); }
+    if(e.key.toLowerCase()==='n' && (e.ctrlKey||e.metaKey)) { e.preventDefault(); $('#title').focus(); }
+  });
+
+  // Export / Import / Clear
+  $('#exportJson').addEventListener('click', ()=>{
+    const data = JSON.stringify(state, null, 2);
+    const blob = new Blob([data], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='tiny-kanban.json'; a.click(); URL.revokeObjectURL(url);
+  });
+  $('#importJson').addEventListener('click', ()=>{
+    const inp = document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+    inp.onchange = ()=>{
+      const f = inp.files[0]; if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{ const s = JSON.parse(reader.result); if(!s.items||!s.people||!s.wip) throw new Error('Неверный формат'); state = s; save(); renderPeopleSelect(); ['todo','doing','done'].forEach(c=> $('#wip-'+c).value = Number(state.wip[c]||0)); renderBoard(); toast('Импортированно'); }
+        catch(err){ alert('Ошибка импорта: '+err.message); }
+      };
+      reader.readAsText(f);
+    };
+    inp.click();
+  });
+  $('#clearAll').addEventListener('click', ()=>{
+    if(confirm('Удалить все задачи и настройки?')){ state.items=[]; state.seq=1; save(); renderBoard(); }
+  });
+
+  // Initial render
+  renderBoard();
+})();
+</script>
 </body>
 </html>
